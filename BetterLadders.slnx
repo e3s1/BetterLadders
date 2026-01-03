@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/Info/">
+    <File Path="CHANGELOG.md" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Templates/">
+    <File Path="templates/manifest.json" />
+    <File Path="templates/thunderstore.toml" />
+  </Folder>
+  <Project Path="BetterLadders.SourceGen/BetterLadders.SourceGen.csproj" />
+  <Project Path="BetterLadders/BetterLadders.csproj" />
+</Solution>

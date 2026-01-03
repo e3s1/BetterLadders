@@ -1,103 +1,111 @@
-﻿using GameNetcodeStuff;
+﻿using System.Diagnostics.CodeAnalysis;
+using BetterLadders.Config;
+using GameNetcodeStuff;
 using HarmonyLib;
 using UnityEngine;
 
-namespace BetterLadders.Patches
+namespace BetterLadders.Patches;
+
+internal static class HoldToPickup
 {
-    internal class HoldToPickup
+    private static bool _canPickupLadder = false;
+
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    [HarmonyPrefix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.BeginGrabObject))]
+    private static bool ControlExtLadderPickup(PlayerControllerB __instance)
     {
-        private static bool canPickupLadder = false;
-
-        [HarmonyPrefix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.BeginGrabObject))]
-        private static bool ControlExtLadderPickup(ref PlayerControllerB __instance)
-        {
-            if (LookingAtGrabbableExtLadder(ref __instance, out RaycastHit hit, out ExtensionLadderItem extLadderObj))
-            {
-                if (extLadderObj != null && extLadderObj.ladderActivated)
-                {
-                    if (canPickupLadder)
-                    {
-                        canPickupLadder = false;
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-            }
+        if (!LocalConfig.Instance.HoldToPickup.Value) return true;
+        
+        if (!LookingAtGrabbableExtLadder(__instance, out var extLadderObj))
             return true;
-        }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.ClickHoldInteraction))]
-        private static void ShowHoldInteractHUD(ref PlayerControllerB __instance)
+        if (extLadderObj == null || !extLadderObj.ladderActivated) return true;
+        if (!_canPickupLadder) return false;
+        
+        _canPickupLadder = false;
+        
+        return true;
+    }
+
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    [HarmonyPostfix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.ClickHoldInteraction))]
+    private static void ShowHoldInteractHUD(PlayerControllerB __instance)
+    {
+        if (!LocalConfig.Instance.HoldToPickup.Value) return;
+        
+        if (!__instance.hoveringOverTrigger)
         {
-            if (!__instance.hoveringOverTrigger)
-            {
-                bool isHoldingInteract = IngamePlayerSettings.Instance.playerInput.actions.FindAction("Interact").IsPressed();
-                if (!isHoldingInteract)
-                {
-                    HUDManager.Instance.holdFillAmount = 0f;
-                    return;
-                }
-                if (LookingAtGrabbableExtLadder(ref __instance, out RaycastHit hit, out ExtensionLadderItem extLadderObj))
-                {
-                    if (extLadderObj != null && extLadderObj.ladderActivated)
-                    {
-                        if (!HUDManager.Instance.HoldInteractionFill(Config.Default.holdTime))
-                        {
-                            return;
-                        }
-                        canPickupLadder = true;
-                        __instance.BeginGrabObject();
-                    }
-                }
-            }
-        }
-        [HarmonyPrefix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.StopHoldInteractionOnTrigger))]
-        private static bool StopHoldInteractionOnTrigger(ref PlayerControllerB __instance)
-        {
-            if (LookingAtGrabbableExtLadder(ref __instance, out RaycastHit hit, out ExtensionLadderItem extLadderObj))
-            {
-                if (extLadderObj != null && extLadderObj.ladderActivated)
-                {
-                    bool isHoldingInteract = IngamePlayerSettings.Instance.playerInput.actions.FindAction("Interact").IsPressed();
-                    if (isHoldingInteract) return false;
-                    HUDManager.Instance.holdFillAmount = 0f;
-                }
-                else
-                {
-                    HUDManager.Instance.holdFillAmount = 0f;
-                }
-            }
-            else
+            bool isHoldingInteract = IngamePlayerSettings.Instance.playerInput.actions.FindAction("Interact").IsPressed();
+            if (!isHoldingInteract)
             {
                 HUDManager.Instance.holdFillAmount = 0f;
+                return;
             }
-            if (__instance.previousHoveringOverTrigger != null)
+            if (LookingAtGrabbableExtLadder(__instance, out var extLadderObj))
             {
-                __instance.previousHoveringOverTrigger.StopInteraction();
+                if (extLadderObj != null && extLadderObj.ladderActivated)
+                {
+                    if (!HUDManager.Instance.HoldInteractionFill(LocalConfig.Instance.HoldTime.Value))
+                    {
+                        return;
+                    }
+                    _canPickupLadder = true;
+                    __instance.BeginGrabObject();
+                }
             }
-            if (__instance.hoveringOverTrigger != null)
-            {
-                __instance.hoveringOverTrigger.StopInteraction();
-            }
-            return false;
         }
-        private static bool LookingAtGrabbableExtLadder(ref PlayerControllerB __instance, out RaycastHit hit, out ExtensionLadderItem extLadderObj)
+    }
+    
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    [HarmonyPrefix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.StopHoldInteractionOnTrigger))]
+    private static bool StopHoldInteractionOnTrigger(PlayerControllerB __instance)
+    {
+        if (!LocalConfig.Instance.HoldToPickup.Value) return true;
+        
+        if (LookingAtGrabbableExtLadder(__instance, out var extLadderObj))
         {
-            var interactRay = new Ray(__instance.gameplayCamera.transform.position, __instance.gameplayCamera.transform.forward);
-            bool success = (Physics.Raycast(interactRay, out hit, __instance.grabDistance, __instance.interactableObjectsMask) && hit.collider.gameObject.layer != 8);
-            if (success)
+            if (extLadderObj != null && extLadderObj.ladderActivated)
             {
-                extLadderObj = hit.collider.gameObject.GetComponent<ExtensionLadderItem>();
-                if (__instance.twoHanded || (extLadderObj != null && !extLadderObj.grabbable)) return false;
+                var isHoldingInteract = IngamePlayerSettings.Instance.playerInput.actions.FindAction("Interact").IsPressed();
+                if (isHoldingInteract)
+                {
+                    return false;
+                }
+                
+                HUDManager.Instance.holdFillAmount = 0f;
             }
-            else
-            {
-                extLadderObj = null;
-            }
-            return success;
+
         }
+        else
+        {
+            HUDManager.Instance.holdFillAmount = 0f;
+        }
+        
+        if (__instance.previousHoveringOverTrigger != null)
+        {
+            __instance.previousHoveringOverTrigger.StopInteraction();
+        }
+        
+        if (__instance.hoveringOverTrigger != null)
+        {
+            __instance.hoveringOverTrigger.StopInteraction();
+        }
+        
+        return false;
+    }
+    private static bool LookingAtGrabbableExtLadder(PlayerControllerB player, out ExtensionLadderItem extLadderObj)
+    {
+        // not sure what layer 8 is, this is taken from PlayerControllerB::BeginGrabObject()
+        var success = Physics.Raycast(player.interactRay, out var hit, player.grabDistance, player.interactableObjectsMask) && hit.collider.gameObject.layer != 8;
+        if (success)
+        {
+            extLadderObj = hit.collider.gameObject.GetComponent<ExtensionLadderItem>();
+            if (player.twoHanded || (extLadderObj != null && !extLadderObj.grabbable)) return false;
+        }
+        else
+        {
+            extLadderObj = null;
+        }
+        return success;
     }
 }

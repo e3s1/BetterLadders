@@ -1,0 +1,9 @@
+{
+    "name": "$Product",
+    "version_number": "$Version",
+    "website_url": "$RepositoryUrl",
+    "description": "$Description",
+    "dependencies": [
+        $Dependencies
+    ]
+}

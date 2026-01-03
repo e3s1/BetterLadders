@@ -1,0 +1,18 @@
+[config]
+schemaVersion = "0.0.1"
+
+[package]
+namespace = "$Namespace"
+name = "$Product"
+versionNumber = "$Version"
+description = "$Description"
+websiteUrl = "$RepositoryUrl"
+containsNsfwContent = false
+[package.dependencies]
+$Dependencies
+
+[publish]
+repository = "https://thunderstore.io"
+communities = [ "$Community", ]
+[publish.categories]
+$Categories

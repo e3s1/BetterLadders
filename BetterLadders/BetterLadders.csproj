@@ -1,36 +1,114 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
     <PropertyGroup>
+        <Namespace>e3s1</Namespace>
+        <Product>BetterLadders</Product>
+        <AssemblyName>$(Namespace).$(Product)</AssemblyName>
+        <Version>1.5.0</Version>
+        <Description>[v73] Configurable climbing speed, extension ladder time, climbing with two-handed items, and more</Description>
+        <RepositoryUrl>https://github.com/e3s1/BetterLadders</RepositoryUrl>
+        <UnityVersion>2022.3.62</UnityVersion>
         <TargetFramework>netstandard2.1</TargetFramework>
-        <AssemblyName>BetterLadders</AssemblyName>
-        <Description>Configurable climbing speed, extension ladder time, and climbing with two-handed items</Description>
-        <Version>1.4.3</Version>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
+        <ImplicitUsings>true</ImplicitUsings>
+        <SolutionDir>$(MSBuildProjectDirectory)/../</SolutionDir>
     </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-      <Optimize>True</Optimize>
+    
+    <!-- Thunderstore Metadata -->
+    <PropertyGroup>
+        <Community>lethal-company</Community>
     </PropertyGroup>
+    <ItemGroup>
+        <Dependencies Include="BepInExPack" Author="BepInEx" Version="5.4.2100" Visible="false" />
+        
+        <Categories Include="bepinex" Visible="false" />
+        <Categories Include="mods" Visible="false" />
+        <Categories Include="clientside" Visible="false" />
+        <Categories Include="serverside" Visible="false" />
+        <Categories Include="tweaks-and-quality-of-life" Visible="false" />
+    </ItemGroup>
 
     <ItemGroup>
-		<PackageReference Include="BepInEx.Analyzers" Version="1.0.8">
-		  <PrivateAssets>all</PrivateAssets>
-		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
-		<PackageReference Include="BepInEx.Core" Version="5.4.21" />
-		<PackageReference Include="BepInEx.PluginInfoProps" Version="2.1.0" />
-        <PackageReference Include="UnityEngine.Modules" Version="2022.3.9" IncludeAssets="compile" />
-		<PackageReference Include="LethalCompany.GameLibs.Steam" Version="55.0.0-beta.0-ngd.0" IncludeAssets="compile" Publicize="true" />
+        <PackageReference Include="BepInEx.Analyzers" Version="1.0.8">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+        <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+        <PackageReference Include="BepInEx.PluginInfoProps" Version="2.1.0" />
+        <PackageReference Include="UnityEngine.Modules" Version="$(UnityVersion)" IncludeAssets="compile" />
+        <PackageReference Include="LethalCompany.GameLibs.Steam" Version="73.0.0-ngd.0" IncludeAssets="compile" Publicize="true" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
-        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
+    <ItemGroup>
+        <PackageReference Include="TeamBMX.LobbyCompatibility" Version="1.*" PrivateAssets="all" Publicize="true" />
+        <PackageReference Include="AinaVT-LethalConfig" Version="1.*" PrivateAssets="all" Publicize="true" />
     </ItemGroup>
 
-    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Condition="'$(BuildingInsideVisualStudio)' == 'true'" Command="xcopy /Y &quot;bin\Debug\netstandard2.1\BetterLadders.dll&quot; &quot;%25appdata%25\com.kesomannen.gale\lethal-company\profiles\BetterLadders Testing\BepInEx\plugins\e3s1-BetterLadders&quot;" />
-	</Target>
+    <ItemGroup>
+        <ProjectReference Include="..\BetterLadders.SourceGen\BetterLadders.SourceGen.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    </ItemGroup>
 
+    <Target Name="NetcodePatch" AfterTargets="PostBuildEvent">
+        <Exec Command="netcode-patch -uv $(UnityVersion) -nv 1.12.0 -tv 1.0.0 &quot;$(TargetPath)&quot; @(ReferencePathWithRefAssemblies->'&quot;%(Identity)&quot;', ' ')" />
+    </Target>
+
+    <Target Name="CustomPublishFiles" AfterTargets="ComputeFilesToPublish">
+        <ItemGroup>
+            <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" />
+        </ItemGroup>
+
+        <ItemGroup>
+            <ResolvedFileToPublish Include="$(TargetPath)" RelativePath="$(TargetFileName)" CopyToPublishDirectory="Always" />
+            <ResolvedFileToPublish Include="$(SolutionDir)README.md" RelativePath="README.md" CopyToPublishDirectory="Always" />
+            <ResolvedFileToPublish Include="$(SolutionDir)CHANGELOG.md" RelativePath="CHANGELOG.md" CopyToPublishDirectory="Always" />
+            <ResolvedFileToPublish Include="$(SolutionDir)icon.png" RelativePath="icon.png" CopyToPublishDirectory="Always" />
+        </ItemGroup>
+        
+        <PropertyGroup>
+            <DependenciesJson>@(Dependencies->'"%(Author)-%(Identity)-%(Version)"', ',&#xA;        ')</DependenciesJson>
+        </PropertyGroup>
+
+        <WriteLinesToFile
+            File="$(PublishDir)manifest.json"
+            Lines="$([System.IO.File]::ReadAllText($(SolutionDir)templates/manifest.json)
+                .Replace('$Product','$(Product)')
+                .Replace('$Version','$(Version)')
+                .Replace('$RepositoryUrl','$(RepositoryUrl)')
+                .Replace('$Description','$(Description)')
+                .Replace('$Dependencies','$(DependenciesJson)')
+            )"
+            Overwrite="true" />
+    </Target>
+
+
+    <Target Name="CreateArtifacts" AfterTargets="Publish">
+        <PropertyGroup>
+            <ArtifactsDir>$(MSBuildProjectDirectory)/artifacts</ArtifactsDir>
+            <DependenciesToml>@(Dependencies->'%(Author)-%(Identity) = "%(Version)"', '&#xA;')</DependenciesToml>
+            <CategoriesToml>$(Community) = [ @(Categories->'"%(Identity)"', ', ') ]</CategoriesToml>
+        </PropertyGroup>
+
+        <MakeDir Directories="$(ArtifactsDir)" />
+        <ZipDirectory SourceDirectory="$(PublishDir)" DestinationFile="$(ArtifactsDir)/build.zip" Overwrite="true" />
+        
+        <WriteLinesToFile
+            File="$(ArtifactsDir)/thunderstore.toml"
+            Lines="$([System.IO.File]::ReadAllText($(SolutionDir)templates/thunderstore.toml)
+                .Replace('$Namespace','$(Namespace)')
+                .Replace('$Product','$(Product)')
+                .Replace('$Version','$(Version)')
+                .Replace('$Description','$(Description)')
+                .Replace('$RepositoryUrl','$(RepositoryUrl)')
+                .Replace('$Community','$(Community)')
+                .Replace('$Dependencies','$(DependenciesToml)')
+                .Replace('$Categories','$(CategoriesToml)')
+            )"
+            Overwrite="true" />
+    </Target>
+
+    <ItemGroup>
+        <None Remove="lib/*" />
+        <None Remove="artifacts/*" />
+        <None Remove="NuGet.Config" />
+    </ItemGroup>
 </Project>

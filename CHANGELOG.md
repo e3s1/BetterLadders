@@ -1,4 +1,12 @@
 # Changelog
+## 1.5.0
+- Updated to Lethal Company v73
+- Added ExtensionSpeedMultiplier, FallSpeedMultiplier, ExtensionDelay, and FallDelay config options
+- Animation speed is now synced to other players
+- Added support for LethalConfig and LobbyCompatibility
+- Config values now take effect if changed without restarting the game
+- Remade config syncing
+- Better transpiler logging when DebugMode = true
 ## 1.4.3
 - Transpilers are now unpatched correctly
 - IL code is now only logged if debugMode is true in the config

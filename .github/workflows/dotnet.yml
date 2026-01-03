@@ -1,9 +1,8 @@
 name: Build and Publish
 
 on:
-  release:
-    types: [released, prereleased]
-
+  workflow_dispatch: 
+    
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,47 +10,18 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 8.0.x
+    - name: Install .NET tools
+      run: |
+        dotnet tool install -g Evaisa.NetcodePatcher.Cli
+        dotnet tool install -g tcli
     - name: Build
-      run: dotnet build
-    - name: Get Release Info
-      run: |
-        name=$(jq -r '.name' manifest.json)
-        version=$(jq -r '.version_number' manifest.json)
-
-        echo "name=$name" >> $GITHUB_ENV
-        echo "version=$version" >> "$GITHUB_ENV"
-        echo "description=$(jq -r '.description' manifest.json)" >> "$GITHUB_ENV"
-        echo "dependencies=$(jq -r '.dependencies | join(" ")' manifest.json)" >> "$GITHUB_ENV"
-        echo "zip_name=$name-$version.zip" >> "$GITHUB_ENV"
-        echo "dll_name=$name.dll" >> "$GITHUB_ENV"
-    - name: Create Thunderstore Package
-      run: |
-        zip -j ${{ env.zip_name }} "manifest.json" "icon.png" "README.md" "CHANGELOG.md" "BetterLadders/bin/Debug/netstandard2.1/${{ env.dll_name }}"
-    - name: Attach Archive to Release
-      run: gh release upload ${{ github.event.release.tag_name }} ${{ env.zip_name }}
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      run: dotnet publish -c Release
     - name: Upload to Thunderstore
-      uses: GreenTF/upload-thunderstore-package@v4.3
-      with:
-        namespace: e3s1
-        description: ${{ env.description }}
-        token: ${{ secrets.TS_API_KEY }}
-        name: ${{ env.name }}
-        version: ${{ env.version }}
-        community: lethal-company
-        repo: thunderstore.io
-        deps: ${{ env.dependencies }}
-        file: ${{ env.zip_name }}
-        categories: |
-          bepinex
-          mods
-          clientside
-          serverside
-          misc
+      run: |
+        cd BetterLadders/artifacts
+        tcli publish --file build.zip --token ${{ secrets.TS_API_KEY }}

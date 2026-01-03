@@ -1,18 +1,24 @@
-﻿using GameNetcodeStuff;
+﻿using System.Diagnostics.CodeAnalysis;
+using BetterLadders.Config;
+using GameNetcodeStuff;
 using HarmonyLib;
 
 namespace BetterLadders.Patches
 {
-    internal class AllowTwoHanded
+    internal static class AllowTwoHanded
     {
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
         [HarmonyPrefix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.Interact_performed))]
-        private static void LadderTwoHandedAccessPatch(ref InteractTrigger ___hoveringOverTrigger, ref bool ___twoHanded)
+        private static void LadderTwoHandedAccessPrefix(PlayerControllerB __instance)
         {
-            if (Config.Instance.allowTwoHanded && ___hoveringOverTrigger != null && ___hoveringOverTrigger.isLadder && ___twoHanded)
-            {
-                ___hoveringOverTrigger.twoHandedItemAllowed = true;
-                ___hoveringOverTrigger.specialCharacterAnimation = false;
-            }
+            var trigger = __instance.hoveringOverTrigger;
+            if (trigger == null || !trigger.isLadder) return;
+            
+            // Allow player to exit ladder when carrying two-handed item if config is changed while climbing
+            var allowTwoHanded = LocalConfig.Instance.AllowTwoHanded.Value || __instance.isClimbingLadder;
+            
+            trigger.twoHandedItemAllowed = allowTwoHanded;
+            trigger.specialCharacterAnimation = !allowTwoHanded;
         }
     }
 }

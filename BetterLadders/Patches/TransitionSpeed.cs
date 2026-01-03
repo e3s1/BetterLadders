@@ -1,33 +1,43 @@
-﻿using HarmonyLib;
-using System.Collections.Generic;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Reflection.Emit;
+using BetterLadders.Config;
+using HarmonyLib;
+using UnityEngine;
 
-namespace BetterLadders.Patches
+namespace BetterLadders.Patches;
+
+internal static class TransitionSpeed
 {
-    internal class TransitionSpeed
+    private static readonly MethodInfo DeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.deltaTime));
+    private static readonly MethodInfo MultiplierGetter = AccessTools.PropertyGetter(typeof(TransitionSpeed), nameof(Multiplier));
+    
+    public static float Multiplier => LocalConfig.Instance.TransitionSpeedMultiplier.Value;
+    
+    [HarmonyTranspiler, HarmonyPatch(typeof(InteractTrigger), nameof(InteractTrigger.ladderClimbAnimation), MethodType.Enumerator)]
+    internal static IEnumerable<CodeInstruction> TransitionSpeedTranspiler(IEnumerable<CodeInstruction> instructions)
     {
-        [HarmonyTranspiler, HarmonyPatch(typeof(InteractTrigger), nameof(InteractTrigger.ladderClimbAnimation), MethodType.Enumerator)]
-        internal static IEnumerable<CodeInstruction> TransitionSpeedTranspiler(IEnumerable<CodeInstruction> instructions)
-        {
-            Plugin.Logger.LogInfo("Starting TransitionSpeed transpiler");
-            var code = new List<CodeInstruction>(instructions);
-            if (Config.Instance.transitionSpeedMultiplier <= 0)
+        return TranspilerHelper.Patch(instructions, [
+            (code, logIndices) =>
             {
-                Plugin.Logger.LogError($"transitionSpeedMultiplier ({Config.Instance.transitionSpeedMultiplier}) is an invalid value");
-                return code;
-            }
-            for (int i = 0; i < code.Count; i++)
-            {
-                if (code[i].opcode == OpCodes.Call && 
-                    code[i].operand is MethodInfo method && method.Name == "get_deltaTime")
+                var modifications = 0;
+                
+                for (var i = 0; i < code.Count; i++)
                 {
-                    code.Insert(i + 1, new CodeInstruction(OpCodes.Ldc_R4, Config.Instance.transitionSpeedMultiplier));
-                    code.Insert(i + 2, new CodeInstruction(OpCodes.Mul));
-                    Plugin.Instance.TranspilerLogger(code, i, -2, 4, "TransitionSpeed");
+                    // matches Time.deltaTime
+                    if (code[i].opcode == OpCodes.Call && 
+                        code[i].operand is MethodInfo method && method == DeltaTimeGetter)
+                    {
+                        // multiplies Time.deltaTime by Multiplier
+                        code.Insert(i + 1, new CodeInstruction(OpCodes.Call, MultiplierGetter));
+                        code.Insert(i + 2, new CodeInstruction(OpCodes.Mul));
+                        
+                        modifications++;
+                        logIndices.Add((i, i + 3));
+                    }
                 }
+                
+                return modifications > 0;
             }
-            return code;
-        }
+        ]);
     }
 }

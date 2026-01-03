@@ -1,17 +1,36 @@
-﻿using GameNetcodeStuff;
+﻿using System.Diagnostics.CodeAnalysis;
+using BetterLadders.Config;
+using GameNetcodeStuff;
 using HarmonyLib;
 
-namespace BetterLadders.Patches
+namespace BetterLadders.Patches;
+
+internal static class HoverTip
 {
-    internal class HoverTip
+    private static bool? _wasTwoHanded;
+    
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    [HarmonyPrefix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.SetHoverTipAndCurrentInteractTrigger))]
+    private static void LadderHoverTipPrefix(PlayerControllerB __instance)
     {
-        [HarmonyPostfix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.SetHoverTipAndCurrentInteractTrigger))]
-        private static void LadderHandsFullTipPatch(ref PlayerControllerB __instance, ref InteractTrigger ___hoveringOverTrigger, ref bool ___isHoldingInteract, ref bool ___twoHanded)
+        if (__instance.hoveringOverTrigger == null || !__instance.hoveringOverTrigger.isLadder) return;
+
+        if (!__instance.isHoldingInteract) return;
+        
+        if (LocalConfig.Instance.AllowTwoHanded.Value && __instance.twoHanded)
         {
-            if (Config.Instance.allowTwoHanded && ___hoveringOverTrigger != null && ___isHoldingInteract && ___twoHanded && ___hoveringOverTrigger.isLadder)
-            {
-                __instance.cursorTip.text = ___hoveringOverTrigger.hoverTip.Replace("[LMB]", "[E]"); // game doesnt replace interact tooltips with the right keybind so i wont either
-            }
+            _wasTwoHanded = true;
+            __instance.twoHanded = false;
         }
+    }
+
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    [HarmonyPostfix, HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.SetHoverTipAndCurrentInteractTrigger))]
+    private static void LadderHoverTipPostfix(PlayerControllerB __instance)
+    {
+        if (_wasTwoHanded == null) return;
+
+        __instance.twoHanded = (bool)_wasTwoHanded;
+        _wasTwoHanded = null;
     }
 }
